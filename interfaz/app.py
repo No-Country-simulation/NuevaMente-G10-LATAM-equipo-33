@@ -13,7 +13,7 @@ otra, para que el usuario no tenga que "navegar" entre pantallas.
 
 import streamlit as st
 
-#from pages import seccion1_carga, seccion2_parametros, seccion3_resultados
+from pages import seccion1_carga, seccion2_parametros, seccion3_resultados
 from theme import inject_custom_css
 
 st.set_page_config(page_title="NuevaMente", page_icon="🎓", layout="centered")
@@ -63,6 +63,16 @@ st.divider()
 # Las 3 secciones, una debajo de otra en la misma página
 # ---------------------------------------------------------------------------
 
-seccion1_carga.render()
-seccion2_parametros.render()
-seccion3_resultados.render()  # se auto-oculta hasta que exista un resultado
+# Ejemplo de cómo invocar cada módulo dentro de app.py
+try:
+    seccion1_carga.render()
+except AttributeError:
+    st.info("La vista 'Carga de Datos' aún está en desarrollo por el equipo.")
+try:
+    seccion2_parametros.render()
+except AttributeError:
+    st.info("La vista 'Parametros' aún está en desarrollo por el equipo.")
+try:
+   seccion3_resultados.render()  # se auto-oculta hasta que exista un resultado
+except AttributeError:
+    st.info("La vista ' Resultados' aún está en desarrollo por el equipo.")
