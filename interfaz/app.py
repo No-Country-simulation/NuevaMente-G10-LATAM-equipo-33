@@ -13,7 +13,7 @@ otra, para que el usuario no tenga que "navegar" entre pantallas.
 
 import streamlit as st
 
-from pages import seccion1_carga, seccion2_parametros, seccion3_resultados
+#from pages import seccion1_carga, seccion2_parametros, seccion3_resultados
 from theme import inject_custom_css
 
 st.set_page_config(page_title="NuevaMente", page_icon="🎓", layout="centered")
