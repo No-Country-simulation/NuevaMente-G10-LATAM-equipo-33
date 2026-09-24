@@ -1,0 +1,7 @@
+fastapi
+pydantic
+pydantic-settings
+python-dotenv
+uvicorn
+
+
