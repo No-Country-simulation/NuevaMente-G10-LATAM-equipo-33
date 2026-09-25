@@ -1,0 +1,12 @@
+# Entornos virtuales y caché
+venv/
+__pycache__/
+*.pyc
+
+# Bases de datos vectoriales locales (para cuando implementemos Chroma)
+chroma_db/
+*/chroma_db/*
+
+
+# Credenciales y variables de entorno
+.env
