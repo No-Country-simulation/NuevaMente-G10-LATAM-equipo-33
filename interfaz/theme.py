@@ -37,6 +37,20 @@ def inject_custom_css() -> None:
         <style>
         @import url('{GOOGLE_FONT_URL}');
 
+      /* Muestra el encabezado (tres puntos) y destruye la barra lateral izquierda */
+        header[data-testid="stHeader"] {{
+            visibility: visible !important;
+            background: transparent !important;
+        }}
+        [data-testid="stSidebar"] {{
+            display: none !important;
+        }}
+        [data-testid="stSidebarCollapseButton"],
+        [data-testid="stSidebarCollapsedControl"] {{
+            display: none !important;
+        }}
+
+
         html, body, [class*="css"] {{
             font-family: '{FONT_FAMILY}', sans-serif;
         }}
