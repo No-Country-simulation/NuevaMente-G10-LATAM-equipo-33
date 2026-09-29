@@ -1,0 +1,16 @@
+# Entorno Virtual y Caché de Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Variables de Entorno y Secretos
+# .env
+
+# Archivos de Pruebas Locales y PDFs
+# tests/
+# *.pdf
+
+# Persistencia Local de Base Vectorial
+chroma_db/
+.chroma/
