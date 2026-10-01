@@ -11,20 +11,25 @@ otra, para que el usuario no tenga que "navegar" entre pantallas.
     - theme.py / constants.py / backend.py -> compartidos, avisar antes de tocar
 """
 
+
 import streamlit as st
 
 from pages import seccion1_carga, seccion2_parametros, seccion3_resultados
-from theme import inject_custom_css
+from theme import PALETTE, inject_custom_css
 
 st.set_page_config(page_title="NuevaMente", page_icon="🎓", layout="centered")
 inject_custom_css()
 
 # ---------------------------------------------------------------------------
-# Estado de sesión
+# Estado de sesión (Manejo de pasos y datos)
 # ---------------------------------------------------------------------------
+
+if "paso_actual" not in st.session_state:
+    st.session_state["paso_actual"] = 1
 
 if "solicitud" not in st.session_state:
     st.session_state.solicitud = {}
+
 if "resultado" not in st.session_state:
     st.session_state.resultado = None
 
@@ -35,8 +40,6 @@ if "resultado" not in st.session_state:
 col_logo, col_titulo = st.columns([1, 5])
 
 with col_logo:
-    # TODO: cuando tengan el archivo del logo, reemplazar este bloque por:
-    #     st.image("assets/logo.png", width=64)
     st.markdown(
         """
         <div style="
@@ -60,9 +63,26 @@ with col_titulo:
 st.divider()
 
 # ---------------------------------------------------------------------------
-# Las 3 secciones, una debajo de otra en la misma página
+# Control de navegación entre pasos
 # ---------------------------------------------------------------------------
 
-seccion1_carga.render()
-seccion2_parametros.render()
-seccion3_resultados.render()  # se auto-oculta hasta que exista un resultado
+
+paso = st.session_state["paso_actual"]
+
+if paso == 1:
+    try:
+        seccion1_carga.render()
+    except AttributeError:
+        st.info("La vista 'Carga de Datos' aún está en desarrollo por el equipo.")
+
+elif paso == 2:
+    try:
+        seccion2_parametros.render()
+    except AttributeError:
+        st.info("La vista 'Parámetros' aún está en desarrollo por el equipo.")
+
+elif paso == 3:
+    try:
+        seccion3_resultados.render()
+    except AttributeError:
+        st.info("La vista 'Resultados' aún está en desarrollo por el equipo.")
