@@ -165,19 +165,26 @@ def inject_custom_css() -> None:
 
 
 def render_donut(pct: int, label: str = "") -> None:
-    """Círculo de puntaje (0-100), estilo mockup de referencia."""
-    color = PALETTE["secondary"] if pct >= 60 else PALETTE["accent"]
-    st.markdown(
-        f"""
-        <div class="nm-donut-wrap">
-            <div class="nm-donut" style="background: conic-gradient({color} {pct}%, rgba(240,240,240,0.08) 0);">
-                <div style="background:{PALETTE['background']};width:88px;height:88px;border-radius:50%;
-                            display:flex;align-items:center;justify-content:center;flex-direction:column;">
-                    <span>{pct}%</span>
-                    {f'<span style="font-size:0.65rem;font-weight:400;opacity:0.7">{label}</span>' if label else ""}
-                </div>
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    """Círculo de puntaje (0-100) alineado y corregido sin fuga de etiquetas HTML."""
+    pct_val = max(0, min(100, int(pct)))
+    # Cálculo en grados para la propiedad conic-gradient (0 a 360deg)
+    grados = round(pct_val * 3.6)
+    
+    color = PALETTE.get("secondary", "#4ADE80") if pct_val >= 60 else PALETTE.get("accent", "#F59F0A")
+    bg_color = PALETTE.get("background", "#0F172A")
+
+    label_html = f'<span style="font-size:0.65rem;font-weight:400;opacity:0.7;">{label}</span>' if label else ""
+
+    # Se escribe en una sola línea/sin sangrado de espacio al inicio para evitar que Streamlit lo interprete como código Markdown
+    html_code = (
+        f'<div class="nm-donut-wrap" style="display:flex;justify-content:center;align-items:center;margin:12px 0;">'
+        f'<div class="nm-donut" style="background: conic-gradient({color} {grados}deg, rgba(240,240,240,0.08) 0deg);'
+        f'width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;">'
+        f'<div style="background:{bg_color};width:88px;height:88px;border-radius:50%;'
+        f'display:flex;align-items:center;justify-content:center;flex-direction:column;color:#FFFFFF;font-weight:bold;">'
+        f'<span style="font-size:1.2rem;">{pct_val}%</span>'
+        f'{label_html}'
+        f'</div></div></div>'
     )
+
+    st.markdown(html_code, unsafe_allow_html=True)
