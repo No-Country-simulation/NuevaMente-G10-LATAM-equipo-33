@@ -5,11 +5,11 @@ __pycache__/
 *.pyc
 
 # Variables de Entorno y Secretos
-# .env
+.env
 
 # Archivos de Pruebas Locales y PDFs
-# tests/
-# *.pdf
+tests/
+*.pdf
 
 # Persistencia Local de Base Vectorial
 chroma_db/

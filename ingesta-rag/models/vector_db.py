@@ -9,7 +9,7 @@ from typing import List
 from langchain_chroma import Chroma
 from langchain_core.embeddings import Embeddings
 
-from schemas.ingesta_schemas import ChunkResultado
+from contratos import ChunkResultado
 from utils.config import CHROMA_PERSIST_DIR, NOMBRE_COLECCION
 
 logger = logging.getLogger(__name__)
