@@ -6,7 +6,7 @@ dentro de pages/, pero se muestran todas en la misma página, una debajo de
 otra, para que el usuario no tenga que "navegar" entre pantallas.
 
     - pages/seccion1_carga.py       -> Beatriz
-    - pages/seccion2_parametros.py  -> Alessandra
+    - pages/seccion2_parametros.py  -> Rocios
     - pages/seccion3_resultados.py  -> Gisell
     - theme.py / constants.py / backend.py -> compartidos, avisar antes de tocar
 """
@@ -27,6 +27,8 @@ if "solicitud" not in st.session_state:
     st.session_state.solicitud = {}
 if "resultado" not in st.session_state:
     st.session_state.resultado = None
+if "paso_actual" not in st.session_state:
+    st.session_state["paso_actual"] = 1
 
 # ---------------------------------------------------------------------------
 # Encabezado (con espacio reservado para el logo)
@@ -60,19 +62,25 @@ with col_titulo:
 st.divider()
 
 # ---------------------------------------------------------------------------
-# Las 3 secciones, una debajo de otra en la misma página
+# Control de navegación por pasos
 # ---------------------------------------------------------------------------
 
-# Ejemplo de cómo invocar cada módulo dentro de app.py
-try:
-    seccion1_carga.render()
-except AttributeError:
-    st.info("La vista 'Carga de Datos' aún está en desarrollo por el equipo.")
-try:
-    seccion2_parametros.render()
-except AttributeError:
-    st.info("La vista 'Parametros' aún está en desarrollo por el equipo.")
-try:
-   seccion3_resultados.render()  # se auto-oculta hasta que exista un resultado
-except AttributeError:
-    st.info("La vista ' Resultados' aún está en desarrollo por el equipo.")
+paso = st.session_state["paso_actual"]
+
+if paso == 1:
+    try:
+        seccion1_carga.render()
+    except (AttributeError, TypeError):
+        st.info("La vista 'Carga de Datos' aún está en desarrollo por el equipo.")
+
+elif paso == 2:
+    try:
+        seccion2_parametros.render()
+    except (AttributeError, TypeError):
+        st.info("La vista 'Parámetros' aún está en desarrollo por el equipo.")
+
+elif paso == 3:
+    try:
+        seccion3_resultados.render()
+    except (AttributeError, TypeError):
+        st.info("La vista 'Resultados' aún está en desarrollo por el equipo.")
