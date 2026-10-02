@@ -6,30 +6,25 @@ dentro de pages/, pero se muestran todas en la misma página, una debajo de
 otra, para que el usuario no tenga que "navegar" entre pantallas.
 
     - pages/seccion1_carga.py       -> Beatriz
-    - pages/seccion2_parametros.py  -> Alessandra
+    - pages/seccion2_parametros.py  -> Rocios
     - pages/seccion3_resultados.py  -> Gisell
     - theme.py / constants.py / backend.py -> compartidos, avisar antes de tocar
 """
 
-
 import streamlit as st
 
 from pages import seccion1_carga, seccion2_parametros, seccion3_resultados
-from theme import PALETTE, inject_custom_css
+from theme import inject_custom_css
 
 st.set_page_config(page_title="NuevaMente", page_icon="🎓", layout="centered")
 inject_custom_css()
 
 # ---------------------------------------------------------------------------
-# Estado de sesión (Manejo de pasos y datos)
+# Estado de sesión
 # ---------------------------------------------------------------------------
-
-if "paso_actual" not in st.session_state:
-    st.session_state["paso_actual"] = 1
 
 if "solicitud" not in st.session_state:
     st.session_state.solicitud = {}
-
 if "resultado" not in st.session_state:
     st.session_state.resultado = None
 if "paso_actual" not in st.session_state:
@@ -42,6 +37,8 @@ if "paso_actual" not in st.session_state:
 col_logo, col_titulo = st.columns([1, 5])
 
 with col_logo:
+    # TODO: cuando tengan el archivo del logo, reemplazar este bloque por:
+    #     st.image("assets/logo.png", width=64)
     st.markdown(
         """
         <div style="
@@ -65,11 +62,7 @@ with col_titulo:
 st.divider()
 
 # ---------------------------------------------------------------------------
-<<<<<<< Updated upstream
-# Control de navegación entre pasos
-=======
 # Control de navegación por pasos
->>>>>>> Stashed changes
 # ---------------------------------------------------------------------------
 
 paso = st.session_state["paso_actual"]
