@@ -1,6 +1,0 @@
-langchain-core>=0.3.0
-langchain-chroma>=0.1.0
-langchain-google-genai>=2.0.0
-pydantic>=2.7.4
-python-dotenv>=1.0.0
-pypdf>=4.0.0
