@@ -15,8 +15,8 @@ componentes nativos de Streamlit).
 import streamlit as st
 
 PALETTE = {
-    "text": "#F0F0F0",
-    "background": "#070B22",
+    "text": "currentColor",
+    "background": "var(--nm-donut-bg, #070B22)",
     "primary": "#0094F0",
     "secondary": "#10B77F",
     "accent": "#F59F0A",
@@ -36,6 +36,20 @@ def inject_custom_css() -> None:
         f"""
         <style>
         @import url('{GOOGLE_FONT_URL}');
+
+        :root {{
+            --nm-donut-bg: #070B22;
+        }}
+        @media (prefers-color-scheme: light) {{
+            :root {{
+                --nm-donut-bg: #FFFFFF;
+            }}
+        }}
+        @media (prefers-color-scheme: dark) {{
+            :root {{
+                --nm-donut-bg: #070B22;
+            }}
+        }}
 
       /* Muestra el encabezado (tres puntos) y destruye la barra lateral izquierda */
         header[data-testid="stHeader"] {{
@@ -62,8 +76,8 @@ def inject_custom_css() -> None:
 
         /* Tarjeta/sección genérica para separar los 3 bloques en una sola página */
         .nm-section {{
-            background-color: rgba(240, 240, 240, 0.03);
-            border: 1px solid rgba(240, 240, 240, 0.08);
+            background-color: rgba(128, 128, 128, 0.05);
+            border: 1px solid rgba(128, 128, 128, 0.20);
             border-radius: 16px;
             padding: 1.5rem;
             margin-bottom: 1.5rem;
@@ -72,7 +86,7 @@ def inject_custom_css() -> None:
         /* Pastilla (chip) tipo "STEP 1 · ADD MATERIAL" del mockup de referencia */
         .nm-pill {{
             display: inline-block;
-            background-color: rgba(240, 240, 240, 0.08);
+            background-color: rgba(128, 128, 128, 0.12);
             color: {PALETTE["text"]};
             padding: 4px 14px;
             border-radius: 999px;
@@ -128,7 +142,7 @@ def inject_custom_css() -> None:
             width: 22px;
             height: 22px;
             border-radius: 50%;
-            background-color: rgba(240, 240, 240, 0.1);
+            background-color: rgba(128, 128, 128, 0.18);
             color: {PALETTE["text"]};
             font-size: 0.75rem;
             font-weight: 700;
@@ -170,18 +184,18 @@ def render_donut(pct: int, label: str = "") -> None:
     # Cálculo en grados para la propiedad conic-gradient (0 a 360deg)
     grados = round(pct_val * 3.6)
     
-    color = PALETTE.get("secondary", "#4ADE80") if pct_val >= 60 else PALETTE.get("accent", "#F59F0A")
-    bg_color = PALETTE.get("background", "#0F172A")
+    color = PALETTE.get("secondary", "#10B77F") if pct_val >= 60 else PALETTE.get("accent", "#F59F0A")
+    bg_color = PALETTE.get("background", "var(--nm-donut-bg, #070B22)")
 
     label_html = f'<span style="font-size:0.65rem;font-weight:400;opacity:0.7;">{label}</span>' if label else ""
 
     # Se escribe en una sola línea/sin sangrado de espacio al inicio para evitar que Streamlit lo interprete como código Markdown
     html_code = (
         f'<div class="nm-donut-wrap" style="display:flex;justify-content:center;align-items:center;margin:12px 0;">'
-        f'<div class="nm-donut" style="background: conic-gradient({color} {grados}deg, rgba(240,240,240,0.08) 0deg);'
+        f'<div class="nm-donut" style="background: conic-gradient({color} {grados}deg, rgba(128,128,128,0.15) 0deg);'
         f'width:120px;height:120px;border-radius:50%;display:flex;align-items:center;justify-content:center;">'
         f'<div style="background:{bg_color};width:88px;height:88px;border-radius:50%;'
-        f'display:flex;align-items:center;justify-content:center;flex-direction:column;color:#FFFFFF;font-weight:bold;">'
+        f'display:flex;align-items:center;justify-content:center;flex-direction:column;color:{PALETTE["text"]};font-weight:bold;">'
         f'<span style="font-size:1.2rem;">{pct_val}%</span>'
         f'{label_html}'
         f'</div></div></div>'
