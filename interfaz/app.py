@@ -10,11 +10,12 @@ otra, para que el usuario no tenga que "navegar" entre pantallas.
     - pages/seccion3_resultados.py  -> Gisell
     - theme.py / constants.py / backend.py -> compartidos, avisar antes de tocar
 """
-
+import os
 import streamlit as st
 
 from pages import seccion1_carga, seccion2_parametros, seccion3_resultados
 from theme import inject_custom_css
+import  assets
 
 st.set_page_config(page_title="NuevaMente", page_icon="🎓", layout="centered")
 inject_custom_css()
@@ -37,19 +38,22 @@ if "paso_actual" not in st.session_state:
 col_logo, col_titulo = st.columns([1, 5])
 
 with col_logo:
-    # TODO: cuando tengan el archivo del logo, reemplazar este bloque por:
-    #     st.image("assets/logo.png", width=64)
-    st.markdown(
+    st.markdown('<div style="margin-top: 35px;"></div>', unsafe_allow_html=True)
+    logo_path = "assets/logo.png"
+    if os.path.exists(logo_path):
+       st.image("assets/logo.png", width=64)
+    else:
+     st.markdown(
         """
         <div style="
-            width:64px; height:64px;
+            width:100px; height:100px;
             border:2px dashed rgba(240,240,240,0.35);
             border-radius:12px;
             display:flex; align-items:center; justify-content:center;
             text-align:center; font-size:10px; line-height:1.1;
             color:rgba(240,240,240,0.55);
         ">
-            LOGO<br>AQUÍ
+            LOGO<br>
         </div>
         """,
         unsafe_allow_html=True,
