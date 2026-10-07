@@ -1,24 +1,15 @@
-from shared.contratos import ChunkResultado
+import sys
+from pathlib import Path
 
+# Resolver la ruta hacia la carpeta 'ingesta-rag'
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+RAG_DIR = BASE_DIR / "ingesta-rag"
 
-def indexar_documento(
-    documento_titulo: str,
-    documento_contenido: str
-) -> str:
+if str(RAG_DIR) not in sys.path:
+    sys.path.insert(0, str(RAG_DIR))
 
-    return "mock-doc-001"
+# Importación de las funciones reales desde ingesta-rag
+from services.ingestion import indexar_documento
+from services.retrieving_service import buscar_contexto
 
-
-def buscar_contexto(
-    doc_id: str,
-    query: str,
-    top_k: int = 5
-) -> list[ChunkResultado]:
-
-    return [
-        ChunkResultado(
-            texto="Contenido técnico de prueba recuperado mediante RAG mock.",
-            score=0.95,
-            fuente="Documento de prueba - página 1"
-        )
-    ]
+__all__ = ["indexar_documento", "buscar_contexto"]
