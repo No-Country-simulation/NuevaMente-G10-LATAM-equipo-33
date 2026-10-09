@@ -2,6 +2,9 @@
 
 from schemas.juez import VeredictoItem
 from services import evaluador
+from evaluacion.schemas.juez import ResultadoJuez, VeredictoItem
+from evaluacion.services import evaluador
+from shared.contratos import ChunkResultado, ContenidoGenerado
 
 
 def v(indice: int, veredicto: str) -> VeredictoItem:
@@ -33,3 +36,75 @@ def test_indices_repetidos_y_fuera_de_rango_se_ignoran():
 
 def test_sin_items_da_0():
     assert evaluador.calcular_anclaje([], 0) == 0.0
+
+    # --- Pruebas de evaluar_contenido con un juez simulado (sin llamar a Gemini) ---
+
+
+class JuezFalso:
+    """Imita al LLM: devuelve siempre el resultado que se le indica."""
+
+    def __init__(self, resultado):
+        self.resultado = resultado
+
+    def with_structured_output(self, _esquema):
+        return self
+
+    def invoke(self, _prompt):
+        return self.resultado
+
+
+CONTEXTO = [ChunkResultado(texto="Una VCN es una red virtual privada.", score=0.9, fuente="vcn.pdf")]
+
+
+def _contenido(items):
+    return ContenidoGenerado(
+        titulo="VCN",
+        introduccion_contextualizada="Intro",
+        items=items,
+        conceptos_clave=["VCN"],
+        tiempo_estimado_estudio_minutos=5,
+    )
+
+
+def test_evaluar_contenido_marca_items_no_respaldados(monkeypatch):
+    resultado = ResultadoJuez(
+        veredictos_items=[
+            VeredictoItem(indice=0, veredicto="respaldado", justificacion="ok"),
+            VeredictoItem(indice=1, veredicto="no_respaldado", justificacion="inventado"),
+        ],
+        claridad_pedagogica="Alta",
+        observaciones="Resumen.",
+    )
+    monkeypatch.setattr(evaluador, "_get_llm", lambda: JuezFalso(resultado))
+
+    r = evaluador.evaluar_contenido(_contenido([{"a": 1}, {"b": 2}]), CONTEXTO, "principiante", "flashcards")
+
+    assert r.anclaje_fuente_score == 0.5
+    assert r.claridad_pedagogica == "Alta"
+    assert "[1]" in r.observaciones
+
+
+def test_evaluar_contenido_todo_respaldado(monkeypatch):
+    resultado = ResultadoJuez(
+        veredictos_items=[VeredictoItem(indice=0, veredicto="respaldado", justificacion="ok")],
+        claridad_pedagogica="Media",
+        observaciones="Todo bien.",
+    )
+    monkeypatch.setattr(evaluador, "_get_llm", lambda: JuezFalso(resultado))
+
+    r = evaluador.evaluar_contenido(_contenido([{"a": 1}]), CONTEXTO, "principiante", "flashcards")
+
+    assert r.anclaje_fuente_score == 1.0
+    assert "Ítems a revisar" not in r.observaciones
+
+
+def test_evaluar_contenido_sin_items_no_llama_al_llm(monkeypatch):
+    def no_deberia_llamarse():
+        raise AssertionError("no debe llamar al LLM si no hay ítems")
+
+    monkeypatch.setattr(evaluador, "_get_llm", no_deberia_llamarse)
+
+    r = evaluador.evaluar_contenido(_contenido([]), CONTEXTO, "principiante", "flashcards")
+
+    assert r.anclaje_fuente_score == 0.0
+    assert r.claridad_pedagogica == "Baja"
