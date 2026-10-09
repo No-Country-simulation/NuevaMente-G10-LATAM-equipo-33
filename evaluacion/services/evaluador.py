@@ -7,6 +7,7 @@ código calcula el score, para que el resultado sea reproducible y explicable.
 """
 
 import json
+import logging
 import os
 import sys
 from functools import lru_cache
@@ -19,11 +20,12 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from prompts.juez import PROMPT_JUEZ
-from schemas.juez import ResultadoJuez, VeredictoItem
+from evaluacion.prompts.juez import PROMPT_JUEZ
+from evaluacion.schemas.juez import ResultadoJuez, VeredictoItem
 from shared.contratos import ChunkResultado, ContenidoGenerado, EvaluacionCalidad
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 MODELO = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
@@ -31,12 +33,21 @@ MODELO = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 PESOS_VEREDICTO = {"respaldado": 1.0, "parcial": 0.5, "no_respaldado": 0.0}
 
 
+def _obtener_api_key() -> str | None:
+    """Lee la key del .env: acepta GOOGLE_API_KEY / GEMINI_API_KEY o la primera de GEMINI_API_KEYS."""
+    clave = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
+    if clave:
+        return clave
+    claves = [c.strip() for c in os.getenv("GEMINI_API_KEYS", "").split(",") if c.strip()]
+    return claves[0] if claves else None
+
+
 @lru_cache(maxsize=1)
 def _get_llm() -> ChatGoogleGenerativeAI:
     """Crea el LLM la primera vez que se usa (así importar el módulo no exige API key)."""
     return ChatGoogleGenerativeAI(
         model=MODELO,
-        google_api_key=os.getenv("GOOGLE_API_KEY"),
+        google_api_key=_obtener_api_key(),
         max_retries=3,
     )
 
@@ -99,8 +110,19 @@ def evaluar_contenido(
         items_texto=_formatear_items(contenido_generado.items),
     )
 
-    juez = _get_llm().with_structured_output(ResultadoJuez)
-    resultado: ResultadoJuez = juez.invoke(prompt)
+    try:
+        juez = _get_llm().with_structured_output(ResultadoJuez)
+        resultado: ResultadoJuez = juez.invoke(prompt)
+    except Exception as error:
+        logger.warning("No se pudo evaluar el contenido con Gemini: %s", error)
+        return EvaluacionCalidad(
+            anclaje_fuente_score=0.0,
+            claridad_pedagogica="No evaluada",
+            observaciones=(
+                "No se pudo completar la evaluación automática "
+                f"({type(error).__name__}). Revisar el contenido manualmente."
+            ),
+        )
 
     score = calcular_anclaje(resultado.veredictos_items, total_items)
     observaciones = resultado.observaciones
