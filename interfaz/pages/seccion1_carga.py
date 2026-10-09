@@ -29,6 +29,7 @@ def procesar_y_continuar():
         
         # Avanza a la pantalla 2
         st.session_state['paso_actual'] = 2
+        st.rerun()
 
 def render():
     # Centrado de pantalla mediante columnas
