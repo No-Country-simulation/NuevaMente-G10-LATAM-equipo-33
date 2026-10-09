@@ -6,7 +6,6 @@ from evaluacion.schemas.juez import ResultadoJuez, VeredictoItem
 from evaluacion.services import evaluador
 from shared.contratos import ChunkResultado, ContenidoGenerado
 
-
 def v(indice: int, veredicto: str) -> VeredictoItem:
     return VeredictoItem(indice=indice, veredicto=veredicto, justificacion="x")
 
@@ -108,3 +107,19 @@ def test_evaluar_contenido_sin_items_no_llama_al_llm(monkeypatch):
 
     assert r.anclaje_fuente_score == 0.0
     assert r.claridad_pedagogica == "Baja"
+
+def test_evaluar_contenido_devuelve_evaluacion_por_defecto_si_falla_el_llm(monkeypatch):
+    class JuezQueFalla:
+        def with_structured_output(self, _esquema):
+            return self
+
+        def invoke(self, _prompt):
+            raise RuntimeError("cuota agotada")
+
+    monkeypatch.setattr(evaluador, "_get_llm", lambda: JuezQueFalla())
+
+    r = evaluador.evaluar_contenido(_contenido([{"a": 1}]), CONTEXTO, "principiante", "flashcards")
+
+    assert r.anclaje_fuente_score == 0.0
+    assert r.claridad_pedagogica == "No evaluada"
+    assert "RuntimeError" in r.observaciones
