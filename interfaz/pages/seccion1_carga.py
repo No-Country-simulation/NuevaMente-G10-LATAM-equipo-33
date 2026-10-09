@@ -20,7 +20,7 @@ def procesar_y_continuar():
         try:
             texto_extraido = contenido_bytes.decode("utf-8")
         except Exception:
-            texto_extraido = f"Archivo binario ({archivo.type}) subido correctamente."
+            texto_extraido = f"Documento binario subido({archivo.name})"
 
         # Guarda datos en session_state para Backend
         st.session_state['documento_titulo'] = archivo.name
