@@ -6,12 +6,14 @@ from shared.contratos import ChunkResultado, ContenidoQuiz, ItemQuiz
 
 # Se guarda la función real antes de que la fixture la reemplace por una falsa.
 _obtener_api_keys_real = orq._obtener_api_keys
+_obtener_modelos_real = orq._obtener_modelos
 
 CONTEXTO = [
     ChunkResultado(texto="Una VCN es una red virtual privada.", score=0.9, fuente="vcn.pdf")
 ]
 
-ERROR_CUOTA = RuntimeError("429 RESOURCE_EXHAUSTED. You exceeded your current quota")
+ERROR_CUOTA = RuntimeError("429 RESOURCE_EXHAUSTED. Excediste tu cuota actual")
+ERROR_SATURADO = RuntimeError("503 UNAVAILABLE. Este modelo está experimentando alta demanda")
 
 
 class LlmFalso:
@@ -67,9 +69,19 @@ def _generar(**cambios):
 
 
 def _usar_llms(monkeypatch, llms_por_clave):
-    """Configura las keys disponibles y el LLM falso de cada una."""
+    """Configura las keys disponibles y el LLM falso de cada una (un solo modelo)."""
+    monkeypatch.setattr(orq, "_obtener_modelos", lambda: ["modelo-1"])
     monkeypatch.setattr(orq, "_obtener_api_keys", lambda: list(llms_por_clave))
-    monkeypatch.setattr(orq, "_get_llm", lambda clave: llms_por_clave[clave])
+    monkeypatch.setattr(orq, "_get_llm", lambda _modelo, clave: llms_por_clave[clave])
+
+
+def _usar_modelos(monkeypatch, llms):
+    """llms: {(modelo, clave): LlmFalso}. Se prueban en el orden en que aparecen."""
+    modelos = list(dict.fromkeys(m for m, _ in llms))
+    claves = list(dict.fromkeys(c for _, c in llms))
+    monkeypatch.setattr(orq, "_obtener_modelos", lambda: modelos)
+    monkeypatch.setattr(orq, "_obtener_api_keys", lambda: claves)
+    monkeypatch.setattr(orq, "_get_llm", lambda modelo, clave: llms[(modelo, clave)])
 
 
 @pytest.fixture(autouse=True)
@@ -240,3 +252,51 @@ def test_obtener_api_keys_junta_las_variables_sin_repetir(monkeypatch):
     monkeypatch.setattr(orq, "_obtener_api_keys", _obtener_api_keys_real)
 
     assert orq._obtener_api_keys() == ["a", "b", "c"]
+
+
+# --- Modelo de respaldo ---
+
+
+def test_si_el_modelo_esta_saturado_usa_el_modelo_de_respaldo(monkeypatch):
+    principal_k1 = LlmFalso(error=ERROR_SATURADO)
+    principal_k2 = LlmFalso(error=ERROR_SATURADO)
+    respaldo_k1 = LlmFalso(resultado=_quiz())
+    _usar_modelos(
+        monkeypatch,
+        {
+            ("modelo-1", "clave-1"): principal_k1,
+            ("modelo-1", "clave-2"): principal_k2,
+            ("modelo-2", "clave-1"): respaldo_k1,
+            ("modelo-2", "clave-2"): LlmFalso(resultado=_quiz()),
+        },
+    )
+
+    resultado = _generar()
+
+    assert resultado.titulo == "Titulo"
+    assert principal_k1.llamadas == 1
+    assert principal_k2.llamadas == 0  # con el modelo saturado, otra key no ayuda
+    assert respaldo_k1.llamadas == 1
+
+
+def test_si_todos_los_modelos_estan_saturados_lanza_error_generacion(monkeypatch):
+    _usar_modelos(
+        monkeypatch,
+        {
+            ("modelo-1", "clave-1"): LlmFalso(error=ERROR_SATURADO),
+            ("modelo-2", "clave-1"): LlmFalso(error=ERROR_SATURADO),
+        },
+    )
+    with pytest.raises(orq.ErrorGeneracion) as error:
+        _generar()
+    assert "saturados" in str(error.value)
+
+
+def test_obtener_modelos_agrega_el_respaldo_y_no_repite(monkeypatch):
+    monkeypatch.setattr(orq, "_obtener_modelos", _obtener_modelos_real)
+    monkeypatch.setenv("GEMINI_MODEL", "a")
+    monkeypatch.setenv("GEMINI_MODEL_RESPALDO", "b")
+    assert orq._obtener_modelos() == ["a", "b"]
+
+    monkeypatch.setenv("GEMINI_MODEL_RESPALDO", "a")
+    assert orq._obtener_modelos() == ["a"]

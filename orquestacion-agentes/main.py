@@ -11,7 +11,7 @@ Implementa el contrato definido en shared/contratos.py:
 Errores que puede lanzar generar_contenido_adaptado (todos definidos acá):
   EntradaInvalida     un parámetro está vacío o mal formado (es un ValueError)
   FormatoNoSoportado  el formato pedido no existe (es una EntradaInvalida)
-  ErrorGeneracion     falló la generación con Gemini (incluye cupo agotado en todas las keys)
+  ErrorGeneracion     falló la generación con Gemini (cupo agotado o modelos saturados)
 """
 
 import logging
@@ -39,7 +39,8 @@ from shared.contratos import (
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-MODELO = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+MODELO_POR_DEFECTO = "gemini-3.6-flash"
+MODELO_RESPALDO_POR_DEFECTO = "gemini-3.8-flash"
 
 NICHO_POR_DEFECTO = "General"
 NIVEL_DETALLE_POR_DEFECTO = "Didactico"
@@ -115,23 +116,37 @@ def _obtener_api_keys() -> list[str]:
     return list(dict.fromkeys(claves))
 
 
+def _obtener_modelos() -> list[str]:
+    """Modelo principal y modelo de respaldo, en orden y sin repetir."""
+    principal = os.getenv("GEMINI_MODEL", "").strip() or MODELO_POR_DEFECTO
+    respaldo = os.getenv("GEMINI_MODEL_RESPALDO", MODELO_RESPALDO_POR_DEFECTO).strip()
+    return list(dict.fromkeys(m for m in (principal, respaldo) if m))
+
+
 @lru_cache(maxsize=None)
-def _get_llm(api_key: str) -> ChatGoogleGenerativeAI:
-    """Crea el LLM de una key la primera vez que se usa (importar el módulo no exige API key)."""
+def _get_llm(modelo: str, api_key: str) -> ChatGoogleGenerativeAI:
+    """Crea el LLM de un modelo y una key la primera vez que se usa (importar no exige API key)."""
     return ChatGoogleGenerativeAI(
-        model=MODELO,
+        model=modelo,
         google_api_key=api_key,
         max_retries=1,
     )
 
 
+def _es_error_de_sobrecarga(error: Exception) -> bool:
+    """503: el modelo está saturado para todos, cambiar de key no ayuda."""
+    texto = f"{type(error).__name__} {error}".upper()
+    return "UNAVAILABLE" in texto or "503" in texto or "OVERLOADED" in texto
+
+
 def _es_error_de_cuota(error: Exception) -> bool:
+    """429: esta key agotó su cupo, otra key puede tener."""
     texto = f"{type(error).__name__} {error}".upper()
     return "RESOURCE_EXHAUSTED" in texto or "RATELIMIT" in texto or "429" in texto
 
 
 def _invocar_con_rotacion(modelo_formato, prompt: str):
-    """Llama a Gemini; si una key no tiene cupo, prueba con la siguiente."""
+    """Llama a Gemini rotando keys ante errores de cupo y modelos ante saturación."""
     global _clave_actual
 
     claves = _obtener_api_keys()
@@ -142,23 +157,28 @@ def _invocar_con_rotacion(modelo_formato, prompt: str):
         )
 
     ultimo_error = None
-    for desplazamiento in range(len(claves)):
-        indice = (_clave_actual + desplazamiento) % len(claves)
-        try:
-            llm = _get_llm(claves[indice]).with_structured_output(modelo_formato)
-            resultado = llm.invoke(prompt)
-        except Exception as error:
-            if not _es_error_de_cuota(error):
+    for modelo in _obtener_modelos():
+        for desplazamiento in range(len(claves)):
+            indice = (_clave_actual + desplazamiento) % len(claves)
+            try:
+                llm = _get_llm(modelo, claves[indice]).with_structured_output(modelo_formato)
+                resultado = llm.invoke(prompt)
+            except Exception as error:
+                if _es_error_de_sobrecarga(error):
+                    logger.warning("El modelo %s está saturado, se prueba el siguiente: %s", modelo, error)
+                    ultimo_error = error
+                    break  # con el modelo saturado otra key no ayuda: siguiente modelo
+                if _es_error_de_cuota(error):
+                    logger.warning("La API key %d no tiene cupo, se prueba la siguiente: %s", indice + 1, error)
+                    ultimo_error = error
+                    continue
                 raise
-            logger.warning("La API key %d no tiene cupo, se prueba la siguiente: %s", indice + 1, error)
-            ultimo_error = error
-            continue
-        _clave_actual = indice
-        return resultado
+            _clave_actual = indice
+            return resultado
 
     raise ErrorGeneracion(
-        "Se agotó el cupo de Gemini en todas las API keys configuradas. "
-        "Esperá un minuto e intentá de nuevo."
+        "Se agotó el cupo o los modelos de Gemini están saturados en todas las API keys "
+        "configuradas. Esperá un minuto e intentá de nuevo."
     ) from ultimo_error
 
 
