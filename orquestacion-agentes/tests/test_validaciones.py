@@ -4,9 +4,14 @@ from pydantic import BaseModel
 import main as orq
 from shared.contratos import ChunkResultado, ContenidoQuiz, ItemQuiz
 
+# Se guarda la función real antes de que la fixture la reemplace por una falsa.
+_obtener_api_keys_real = orq._obtener_api_keys
+
 CONTEXTO = [
     ChunkResultado(texto="Una VCN es una red virtual privada.", score=0.9, fuente="vcn.pdf")
 ]
+
+ERROR_CUOTA = RuntimeError("429 RESOURCE_EXHAUSTED. You exceeded your current quota")
 
 
 class LlmFalso:
@@ -16,12 +21,14 @@ class LlmFalso:
         self.resultado = resultado
         self.error = error
         self.prompt = None
+        self.llamadas = 0
 
     def with_structured_output(self, _modelo):
         return self
 
     def invoke(self, prompt):
         self.prompt = prompt
+        self.llamadas += 1
         if self.error:
             raise self.error
         return self.resultado
@@ -59,11 +66,18 @@ def _generar(**cambios):
     return orq.generar_contenido_adaptado(**args)
 
 
+def _usar_llms(monkeypatch, llms_por_clave):
+    """Configura las keys disponibles y el LLM falso de cada una."""
+    monkeypatch.setattr(orq, "_obtener_api_keys", lambda: list(llms_por_clave))
+    monkeypatch.setattr(orq, "_get_llm", lambda clave: llms_por_clave[clave])
+
+
 @pytest.fixture(autouse=True)
 def llm_falso_por_defecto(monkeypatch):
     """Ninguna prueba llama a Gemini de verdad."""
+    monkeypatch.setattr(orq, "_clave_actual", 0)
     llm = LlmFalso(resultado=_quiz())
-    monkeypatch.setattr(orq, "_get_llm", lambda: llm)
+    _usar_llms(monkeypatch, {"clave-1": llm})
     return llm
 
 
@@ -150,8 +164,7 @@ def test_devuelve_items_como_dicts_planos():
 
 
 def test_error_de_gemini_se_convierte_en_error_generacion(monkeypatch):
-    llm = LlmFalso(error=RuntimeError("cuota agotada"))
-    monkeypatch.setattr(orq, "_get_llm", lambda: llm)
+    _usar_llms(monkeypatch, {"clave-1": LlmFalso(error=RuntimeError("falló la red"))})
     with pytest.raises(orq.ErrorGeneracion) as error:
         _generar()
     assert "RuntimeError" in str(error.value)
@@ -160,15 +173,70 @@ def test_error_de_gemini_se_convierte_en_error_generacion(monkeypatch):
 @pytest.mark.parametrize("vacio", [None, "sin_items"])
 def test_contenido_vacio_de_gemini_lanza_error_generacion(monkeypatch, vacio):
     resultado = None if vacio is None else _quiz(n_items=0)
-    monkeypatch.setattr(orq, "_get_llm", lambda: LlmFalso(resultado=resultado))
+    _usar_llms(monkeypatch, {"clave-1": LlmFalso(resultado=resultado)})
     with pytest.raises(orq.ErrorGeneracion):
         _generar()
 
 
 def test_sin_api_key_lanza_error_generacion(monkeypatch):
-    monkeypatch.undo()  # saca el LLM falso: probamos el _get_llm real
-    monkeypatch.setattr(orq, "_obtener_api_key", lambda: None)
-    orq._get_llm.cache_clear()
+    monkeypatch.setattr(orq, "_obtener_api_keys", lambda: [])
     with pytest.raises(orq.ErrorGeneracion) as error:
         _generar()
     assert "API key" in str(error.value)
+
+
+# --- Rotación de API keys ---
+
+
+def test_si_una_key_no_tiene_cupo_usa_la_siguiente(monkeypatch):
+    sin_cupo = LlmFalso(error=ERROR_CUOTA)
+    con_cupo = LlmFalso(resultado=_quiz())
+    _usar_llms(monkeypatch, {"clave-1": sin_cupo, "clave-2": con_cupo})
+
+    resultado = _generar()
+
+    assert resultado.titulo == "Titulo"
+    assert sin_cupo.llamadas == 1
+    assert con_cupo.llamadas == 1
+
+
+def test_recuerda_la_ultima_key_que_funciono(monkeypatch):
+    sin_cupo = LlmFalso(error=ERROR_CUOTA)
+    con_cupo = LlmFalso(resultado=_quiz())
+    _usar_llms(monkeypatch, {"clave-1": sin_cupo, "clave-2": con_cupo})
+
+    _generar()
+    _generar()
+
+    assert sin_cupo.llamadas == 1  # la segunda vez ni la prueba
+    assert con_cupo.llamadas == 2
+
+
+def test_si_todas_las_keys_estan_agotadas_lanza_error_generacion(monkeypatch):
+    _usar_llms(
+        monkeypatch,
+        {"clave-1": LlmFalso(error=ERROR_CUOTA), "clave-2": LlmFalso(error=ERROR_CUOTA)},
+    )
+    with pytest.raises(orq.ErrorGeneracion) as error:
+        _generar()
+    assert "todas las API keys" in str(error.value)
+
+
+def test_un_error_que_no_es_de_cuota_no_rota_de_key(monkeypatch):
+    con_error = LlmFalso(error=RuntimeError("falló la red"))
+    otra = LlmFalso(resultado=_quiz())
+    _usar_llms(monkeypatch, {"clave-1": con_error, "clave-2": otra})
+
+    with pytest.raises(orq.ErrorGeneracion):
+        _generar()
+
+    assert otra.llamadas == 0
+
+
+def test_obtener_api_keys_junta_las_variables_sin_repetir(monkeypatch):
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.setenv("GEMINI_API_KEYS", " a , b ,a,, c ")
+    monkeypatch.setattr(orq, "_obtener_api_keys", _obtener_api_keys_real)
+
+    assert orq._obtener_api_keys() == ["a", "b", "c"]
