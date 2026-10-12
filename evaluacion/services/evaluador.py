@@ -4,6 +4,9 @@ Servicio de evaluación de calidad (LLM como juez).
 Compara el contenido generado por orquestacion-agentes contra el contexto
 original recuperado por ingesta-rag. El LLM emite un veredicto por ítem y el
 código calcula el score, para que el resultado sea reproducible y explicable.
+
+evaluar_contenido nunca lanza error por fallas de Gemini: si no puede evaluar,
+devuelve una EvaluacionCalidad con score 0.0 y claridad "No evaluada".
 """
 
 import json
@@ -27,28 +30,99 @@ from shared.contratos import ChunkResultado, ContenidoGenerado, EvaluacionCalida
 load_dotenv()
 logger = logging.getLogger(__name__)
 
-MODELO = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
+MODELO_POR_DEFECTO = "gemini-3.6-flash"
+MODELO_RESPALDO_POR_DEFECTO = "gemini-3.8-flash"
 
 # Peso de cada veredicto en el score de anclaje.
 PESOS_VEREDICTO = {"respaldado": 1.0, "parcial": 0.5, "no_respaldado": 0.0}
 
-
-def _obtener_api_key() -> str | None:
-    """Lee la key del .env: acepta GOOGLE_API_KEY / GEMINI_API_KEY o la primera de GEMINI_API_KEYS."""
-    clave = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if clave:
-        return clave
-    claves = [c.strip() for c in os.getenv("GEMINI_API_KEYS", "").split(",") if c.strip()]
-    return claves[0] if claves else None
+# Índice de la última API key que funcionó (así no se vuelve a golpear una agotada).
+_clave_actual = 0
 
 
-@lru_cache(maxsize=1)
-def _get_llm() -> ChatGoogleGenerativeAI:
-    """Crea el LLM la primera vez que se usa (así importar el módulo no exige API key)."""
+class ErrorEvaluacion(Exception):
+    """No hubo forma de usar Gemini (sin key, sin cupo o modelos saturados)."""
+
+
+def _obtener_api_keys() -> list[str]:
+    """Todas las keys configuradas en el .env, en orden y sin repetir."""
+    claves = []
+    for nombre in ("GOOGLE_API_KEY", "GEMINI_API_KEY"):
+        valor = os.getenv(nombre, "").strip()
+        if valor:
+            claves.append(valor)
+    claves += [c.strip() for c in os.getenv("GEMINI_API_KEYS", "").split(",") if c.strip()]
+    return list(dict.fromkeys(claves))
+
+
+def _obtener_modelos() -> list[str]:
+    """Modelo principal y modelo de respaldo, en orden y sin repetir."""
+    principal = os.getenv("GEMINI_MODEL", "").strip() or MODELO_POR_DEFECTO
+    respaldo = os.getenv("GEMINI_MODEL_RESPALDO", MODELO_RESPALDO_POR_DEFECTO).strip()
+    return list(dict.fromkeys(m for m in (principal, respaldo) if m))
+
+
+@lru_cache(maxsize=None)
+def _get_llm(modelo: str, api_key: str) -> ChatGoogleGenerativeAI:
+    """Crea el LLM de un modelo y una key la primera vez que se usa (importar no exige API key)."""
     return ChatGoogleGenerativeAI(
-        model=MODELO,
-        google_api_key=_obtener_api_key(),
-        max_retries=3,
+        model=modelo,
+        google_api_key=api_key,
+        max_retries=1,
+    )
+
+
+def _es_error_de_sobrecarga(error: Exception) -> bool:
+    """503: el modelo está saturado para todos, cambiar de key no ayuda."""
+    texto = f"{type(error).__name__} {error}".upper()
+    return "UNAVAILABLE" in texto or "503" in texto or "OVERLOADED" in texto
+
+
+def _es_error_de_cuota(error: Exception) -> bool:
+    """429: esta key agotó su cupo, otra key puede tener."""
+    texto = f"{type(error).__name__} {error}".upper()
+    return "RESOURCE_EXHAUSTED" in texto or "RATELIMIT" in texto or "429" in texto
+
+
+def _invocar_con_rotacion(prompt: str) -> ResultadoJuez:
+    """Llama al juez rotando keys ante errores de cupo y modelos ante saturación."""
+    global _clave_actual
+
+    claves = _obtener_api_keys()
+    if not claves:
+        raise ErrorEvaluacion("falta configurar la API key de Gemini")
+
+    ultimo_error = None
+    for modelo in _obtener_modelos():
+        for desplazamiento in range(len(claves)):
+            indice = (_clave_actual + desplazamiento) % len(claves)
+            try:
+                juez = _get_llm(modelo, claves[indice]).with_structured_output(ResultadoJuez)
+                resultado = juez.invoke(prompt)
+            except Exception as error:
+                if _es_error_de_sobrecarga(error):
+                    logger.warning("El modelo %s está saturado, se prueba el siguiente: %s", modelo, error)
+                    ultimo_error = error
+                    break  # con el modelo saturado otra key no ayuda: siguiente modelo
+                if _es_error_de_cuota(error):
+                    logger.warning("La API key %d no tiene cupo, se prueba la siguiente: %s", indice + 1, error)
+                    ultimo_error = error
+                    continue
+                raise
+            _clave_actual = indice
+            return resultado
+
+    raise ErrorEvaluacion("cupo agotado o modelos saturados en todas las API keys") from ultimo_error
+
+
+def _evaluacion_no_disponible(motivo: str) -> EvaluacionCalidad:
+    return EvaluacionCalidad(
+        anclaje_fuente_score=0.0,
+        claridad_pedagogica="No evaluada",
+        observaciones=(
+            f"No se pudo completar la evaluación automática ({motivo}). "
+            "Revisar el contenido manualmente."
+        ),
     )
 
 
@@ -111,18 +185,13 @@ def evaluar_contenido(
     )
 
     try:
-        juez = _get_llm().with_structured_output(ResultadoJuez)
-        resultado: ResultadoJuez = juez.invoke(prompt)
+        resultado = _invocar_con_rotacion(prompt)
+    except ErrorEvaluacion as error:
+        logger.warning("No se pudo evaluar el contenido con Gemini: %s", error)
+        return _evaluacion_no_disponible(str(error))
     except Exception as error:
         logger.warning("No se pudo evaluar el contenido con Gemini: %s", error)
-        return EvaluacionCalidad(
-            anclaje_fuente_score=0.0,
-            claridad_pedagogica="No evaluada",
-            observaciones=(
-                "No se pudo completar la evaluación automática "
-                f"({type(error).__name__}). Revisar el contenido manualmente."
-            ),
-        )
+        return _evaluacion_no_disponible(type(error).__name__)
 
     score = calcular_anclaje(resultado.veredictos_items, total_items)
     observaciones = resultado.observaciones
