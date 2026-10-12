@@ -11,7 +11,7 @@ Implementa el contrato definido en shared/contratos.py:
 Errores que puede lanzar generar_contenido_adaptado (todos definidos acá):
   EntradaInvalida     un parámetro está vacío o mal formado (es un ValueError)
   FormatoNoSoportado  el formato pedido no existe (es una EntradaInvalida)
-  ErrorGeneracion     falló la generación con Gemini
+  ErrorGeneracion     falló la generación con Gemini (incluye cupo agotado en todas las keys)
 """
 
 import logging
@@ -43,6 +43,9 @@ MODELO = os.getenv("GEMINI_MODEL", "gemini-3.6-flash")
 
 NICHO_POR_DEFECTO = "General"
 NIVEL_DETALLE_POR_DEFECTO = "Didactico"
+
+# Índice de la última API key que funcionó (así no se vuelve a golpear una agotada).
+_clave_actual = 0
 
 
 class ErrorOrquestacion(Exception):
@@ -101,30 +104,62 @@ profundidad al perfil indicado, y estructuralo según el formato pedido.
 """
 
 
-def _obtener_api_key() -> str | None:
-    """Acepta GOOGLE_API_KEY / GEMINI_API_KEY o la primera de GEMINI_API_KEYS."""
-    clave = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
-    if clave:
-        return clave
-    claves = [c.strip() for c in os.getenv("GEMINI_API_KEYS", "").split(",") if c.strip()]
-    return claves[0] if claves else None
+def _obtener_api_keys() -> list[str]:
+    """Todas las keys configuradas en el .env, en orden y sin repetir."""
+    claves = []
+    for nombre in ("GOOGLE_API_KEY", "GEMINI_API_KEY"):
+        valor = os.getenv(nombre, "").strip()
+        if valor:
+            claves.append(valor)
+    claves += [c.strip() for c in os.getenv("GEMINI_API_KEYS", "").split(",") if c.strip()]
+    return list(dict.fromkeys(claves))
 
 
-@lru_cache(maxsize=1)
-def _get_llm() -> ChatGoogleGenerativeAI:
-    """Crea el LLM la primera vez que se usa (así importar el módulo no exige API key)."""
-    api_key = _obtener_api_key()
-    if not api_key:
+@lru_cache(maxsize=None)
+def _get_llm(api_key: str) -> ChatGoogleGenerativeAI:
+    """Crea el LLM de una key la primera vez que se usa (importar el módulo no exige API key)."""
+    return ChatGoogleGenerativeAI(
+        model=MODELO,
+        google_api_key=api_key,
+        max_retries=1,
+    )
+
+
+def _es_error_de_cuota(error: Exception) -> bool:
+    texto = f"{type(error).__name__} {error}".upper()
+    return "RESOURCE_EXHAUSTED" in texto or "RATELIMIT" in texto or "429" in texto
+
+
+def _invocar_con_rotacion(modelo_formato, prompt: str):
+    """Llama a Gemini; si una key no tiene cupo, prueba con la siguiente."""
+    global _clave_actual
+
+    claves = _obtener_api_keys()
+    if not claves:
         raise ErrorGeneracion(
             "Falta configurar la API key de Gemini "
             "(GEMINI_API_KEYS, GEMINI_API_KEY o GOOGLE_API_KEY)."
         )
-    return ChatGoogleGenerativeAI(
-        model=MODELO,
-        google_api_key=api_key,
-        temperature=0.3,
-        max_retries=3,
-    )
+
+    ultimo_error = None
+    for desplazamiento in range(len(claves)):
+        indice = (_clave_actual + desplazamiento) % len(claves)
+        try:
+            llm = _get_llm(claves[indice]).with_structured_output(modelo_formato)
+            resultado = llm.invoke(prompt)
+        except Exception as error:
+            if not _es_error_de_cuota(error):
+                raise
+            logger.warning("La API key %d no tiene cupo, se prueba la siguiente: %s", indice + 1, error)
+            ultimo_error = error
+            continue
+        _clave_actual = indice
+        return resultado
+
+    raise ErrorGeneracion(
+        "Se agotó el cupo de Gemini en todas las API keys configuradas. "
+        "Esperá un minuto e intentá de nuevo."
+    ) from ultimo_error
 
 
 def _texto_requerido(campo: str, valor) -> str:
@@ -196,8 +231,7 @@ def generar_contenido_adaptado(
     )
 
     try:
-        llm_estructurado = _get_llm().with_structured_output(modelo_formato)
-        resultado_tipado = llm_estructurado.invoke(prompt)
+        resultado_tipado = _invocar_con_rotacion(modelo_formato, prompt)
     except ErrorGeneracion:
         raise
     except Exception as error:
