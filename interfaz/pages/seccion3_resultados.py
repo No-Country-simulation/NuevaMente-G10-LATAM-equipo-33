@@ -1,6 +1,6 @@
 """Sección 3 — Resultado adaptado interactivo y moderno.
 
-Responsable: Gisell — cubre los 2 formatos completos con tarjetas
+Responsable: Gisell — cubre los 5 formatos completos con tarjetas
 estilizadas, botones dinámicos y navegación fluido.
 """
 
@@ -133,6 +133,12 @@ def render() -> None:
                 _render_flashcards(items)
             elif formato == "Quiz Interactivo con Justificaciones":
                 _render_quiz(items)
+            elif formato == "Guía Práctica Paso a Paso (Tutorial)":
+                _render_tutorial(items)
+            elif formato == "Resumen Ejecutivo (TL;DR)":
+                _render_resumen(items)
+            elif formato == "Guion de Video / Podcast Curado":
+                _render_guion(items)
             else:
                 for item in items:
                     st.write(item)
@@ -306,6 +312,62 @@ def _render_quiz(items: list) -> None:
         if st.button("🔄 Intentar Quiz de Nuevo", use_container_width=True):
             st.session_state.quiz_respuestas = {}
             st.rerun()
+
+
+def _render_tutorial(items: list) -> None:
+    if not items:
+        st.info("No hay pasos tutoriales para mostrar.")
+        return
+    for item in items:
+        st.markdown(
+            f"""
+            <div style="display: flex; gap: 16px; background: rgba(255,255,255,0.03); padding: 16px; border-radius: 12px; margin-bottom: 12px; border-left: 4px solid #38BDF8;">
+                <div style="background: #38BDF8; color: #0F172A; font-weight: bold; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                    {item.get('paso', '#')}
+                </div>
+                <div>
+                    <h4 style="margin: 0 0 6px 0; color: #FFFFFF;">{item.get('titulo', '')}</h4>
+                    <p style="margin: 0; color: #CBD5E1; font-size: 14px;">{item.get('contenido', '')}</p>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _render_resumen(items: list) -> None:
+    if not items:
+        st.info("No hay puntos clave para mostrar.")
+        return
+    for item in items:
+        st.markdown(
+            f"""
+            <div style="background: rgba(255,255,255,0.03); padding: 12px 16px; border-radius: 10px; margin-bottom: 8px; border: 1px solid rgba(255,255,255,0.05); display: flex; align-items: center; gap: 12px;">
+                <span style="color: #F59F0A; font-size: 18px;">📌</span>
+                <span style="color: #E2E8F0; font-size: 14px;">{item.get('punto', '')}</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _render_guion(items: list) -> None:
+    if not items:
+        st.info("No hay escenas registradas.")
+        return
+    for item in items:
+        st.markdown(
+            f"""
+            <div style="background: rgba(255,255,255,0.03); padding: 16px; border-radius: 12px; margin-bottom: 12px; border: 1px solid rgba(255,255,255,0.08);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span style="color: #FACC15; font-weight: bold; font-size: 13px;">🎬 ESCENA: {item.get('escena', '').upper()}</span>
+                    <span style="color: #94A3B8; font-size: 12px;">⏱ {item.get('duracion_estimada_segundos', 0)} seg</span>
+                </div>
+                <p style="margin: 0; color: #E2E8F0; font-size: 14px; font-style: italic;">"{item.get('texto', '')}"</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 
 if __name__ == "__main__":
