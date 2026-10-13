@@ -11,9 +11,6 @@ from theme import PALETTE
 FORMATOS = [
     "Flashcards de Memorización",
     "Quiz Interactivo con Justificaciones",
-    "Guía Práctica Paso a Paso (Tutorial)",
-    "Resumen Ejecutivo (TL;DR)",
-    "Guion de Video / Podcast Curado",
 ]
 
 
@@ -35,6 +32,8 @@ def generar():
         "nicho_sector": st.session_state["param_nicho"].strip(),
         "nivel_detalle": st.session_state["param_nivel"],
     }
+    # Avanzar al Paso 3 (Resultados)
+    st.session_state["paso_actual"] = 3
    
 def render():
     col_izq, col_centro, col_der = st.columns([0.8, 3.4, 0.8])
