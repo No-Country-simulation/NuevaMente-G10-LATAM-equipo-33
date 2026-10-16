@@ -16,7 +16,7 @@ import streamlit as st
 
 PALETTE = {
     "text": "currentColor",
-    "background": "var(--nm-donut-bg, #070B22)",
+    "background": "#070B22",
     "primary": "#0094F0",
     "secondary": "#10B77F",
     "accent": "#F59F0A",
@@ -40,15 +40,8 @@ def inject_custom_css() -> None:
         :root {{
             --nm-donut-bg: #070B22;
         }}
-        @media (prefers-color-scheme: light) {{
-            :root {{
-                --nm-donut-bg: #FFFFFF;
-            }}
-        }}
-        @media (prefers-color-scheme: dark) {{
-            :root {{
-                --nm-donut-bg: #070B22;
-            }}
+        .stApp {{
+            background-color: #070B22 !important;
         }}
 
       /* Muestra el encabezado (tres puntos) y destruye la barra lateral izquierda */
