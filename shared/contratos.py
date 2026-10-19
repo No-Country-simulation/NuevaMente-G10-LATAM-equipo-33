@@ -36,12 +36,50 @@ def buscar_contexto(doc_id: str, query: str, top_k: int = 5) -> list[ChunkResult
     raise NotImplementedError
 
 
+# ── Estructuras de item por formato (uso interno de orquestacion-agentes) ──
+# El LLM se fuerza contra estas para garantizar consistencia. Hacia afuera
+# (backend, interfaz), siempre se expone como items: list[dict[str, Any]]
+# dentro de ContenidoGenerado — así el contrato externo no cambia si se
+# agregan formatos nuevos.
+
+class ItemFlashcard(BaseModel):
+    frente: str
+    dorso: str
+    pista_didactica: str
+
+
+class ItemQuiz(BaseModel):
+    pregunta: str
+    opciones: list[str]
+    respuesta_correcta: str
+    justificacion: str
+
+
 # ── Contrato 2: orquestacion-agentes → backend ───────────────────
 
 class ContenidoGenerado(BaseModel):
     titulo: str
     introduccion_contextualizada: str
-    items: list[dict[str, Any]]        # estructura varía según formato_salida
+    items: list[dict[str, Any]]        # ya normalizado, sin importar el formato
+    conceptos_clave: list[str]
+    tiempo_estimado_estudio_minutos: int
+
+
+# Variantes tipadas, usadas solo internamente por orquestacion-agentes
+# para forzar la salida estructurada del LLM contra el formato correcto.
+
+class ContenidoFlashcards(BaseModel):
+    titulo: str
+    introduccion_contextualizada: str
+    items: list[ItemFlashcard]
+    conceptos_clave: list[str]
+    tiempo_estimado_estudio_minutos: int
+
+
+class ContenidoQuiz(BaseModel):
+    titulo: str
+    introduccion_contextualizada: str
+    items: list[ItemQuiz]
     conceptos_clave: list[str]
     tiempo_estimado_estudio_minutos: int
 
