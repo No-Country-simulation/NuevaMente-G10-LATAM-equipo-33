@@ -126,12 +126,15 @@ def generar():
     try:
         import requests
         resp = requests.post(
-            "http://localhost:8000/api/v1/adapt",
+            "http://localhost:8001/api/v1/adapt",
             json=solicitud,
             timeout=5
         )
         if resp.status_code == 200:
             resultado = resp.json()
+            st.write("RESPUESTA REAL DEL BACKEND:")
+            st.json(resultado)
+            
     except Exception:
         resultado = None
 
@@ -186,3 +189,4 @@ def render():
 
 if __name__ == "__main__":
     render()
+
