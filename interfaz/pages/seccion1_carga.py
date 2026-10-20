@@ -17,15 +17,19 @@ def procesar_y_continuar():
         contenido_bytes = archivo.getvalue()
 
         # Extracción del contenido previamente subido
-        try:
-            texto_extraido = contenido_bytes.decode("utf-8")
-        except Exception:
-            texto_extraido = f"Documento binario subido({archivo.name})"
-
+        if archivo.name.endswith((".txt", ".md")):
+            try:
+                texto_extraido = contenido_bytes.decode("utf-8")
+            except Exception:
+                texto_extraido = ""
+        else:
+            texto_extraido = ""  # El backend extrae el texto real con pypdf / python-docx
+        
         # Guarda datos en session_state para Backend
         st.session_state['documento_titulo'] = archivo.name
         st.session_state['documento_contenido'] = texto_extraido
         st.session_state['archivo_bytes'] = contenido_bytes
+        st.session_state['archivo_tipo'] = archivo.type
         
         # Avanza a la pantalla 2
         st.session_state['paso_actual'] = 2
