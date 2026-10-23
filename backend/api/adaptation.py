@@ -13,7 +13,7 @@ router = APIRouter(
 
 
 
-@router.post("/adapt")
+@router.post("")
 def adapt(request: AdaptacionRequest):
     try:
         return adaptar_contenido(request)
