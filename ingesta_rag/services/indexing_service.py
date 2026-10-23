@@ -4,22 +4,22 @@ Descripción: Expone la función principal 'indexar_documento' requerida en cont
 """
 
 import logging
-#from ingesta_rag.services.chunker import dividir_texto
-#from ingesta_rag.services.embedding_service import GeminiEmbeddingsResiliente
 from ingesta_rag.services.chunker import dividir_texto
-from ingesta_rag.services.embedding_service import (
-    GeminiEmbeddingsResiliente,
-)
-#from ingesta_rag.models.vector_db import indexar_en_chroma
-#from ingesta_rag.utils.key_manager import KeyManager
-#from ingesta_rag.utils.config import GEMINI_API_KEYS, CHUNK_SIZE, CHUNK_OVERLAP
+from ingesta_rag.services.embedding_service import GeminiEmbeddingsResiliente
+#from ingesta-rag.services.chunker import dividir_texto
+#from ingesta-rag.services.embedding_service import (
+#    GeminiEmbeddingsResiliente,
+#)
 from ingesta_rag.models.vector_db import indexar_en_chroma
 from ingesta_rag.utils.key_manager import KeyManager
-from ingesta_rag.utils.config import (
-    GEMINI_API_KEYS,
-    CHUNK_SIZE,
-    CHUNK_OVERLAP,
-)
+from ingesta_rag.utils.config import GEMINI_API_KEYS, CHUNK_SIZE, CHUNK_OVERLAP
+#from ingesta-rag.models.vector_db import indexar_en_chroma
+#from ingesta-rag.utils.key_manager import KeyManager
+#from ingesta-rag.utils.config import (
+#    GEMINI_API_KEYS,
+#    CHUNK_SIZE,
+#    CHUNK_OVERLAP,
+#)
 
 logger = logging.getLogger(__name__)
 
