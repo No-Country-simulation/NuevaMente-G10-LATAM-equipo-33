@@ -130,7 +130,7 @@ def generar():
             json=solicitud,
             timeout=120
         )
-        if resp.status_code == 600:
+        if resp.status_code == 200:
             resultado = resp.json()
             st.write("RESPUESTA REAL DEL BACKEND:")
             st.json(resultado)
