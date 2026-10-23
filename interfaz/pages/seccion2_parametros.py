@@ -128,7 +128,7 @@ def generar():
         resp = requests.post(
             "http://localhost:8001/api/v1/adapt",
             json=solicitud,
-            timeout=5
+            timeout=120
         )
         if resp.status_code == 200:
             resultado = resp.json()
