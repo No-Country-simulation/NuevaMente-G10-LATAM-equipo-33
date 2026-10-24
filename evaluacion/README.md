@@ -26,9 +26,9 @@ pip install -r evaluacion/requirements.txt
 
 Se leen del archivo `evaluacion/.env` (ver `.env.example`).
 
-- `GEMINI_API_KEYS`: keys de Gemini separadas por coma. Se usa la primera.
-- `GOOGLE_API_KEY` o `GEMINI_API_KEY`: alternativa con una sola key. Tiene prioridad si está definida.
-- `GEMINI_MODEL`: opcional. Por defecto `gemini-3.6-flash`.
+- `GEMINI_API_KEYS`: una o varias keys separadas por coma. Si una agota su cupo (error 429), usa la siguiente. También se acepta `GOOGLE_API_KEY` o `GEMINI_API_KEY` con una sola key.
+- `GEMINI_MODEL`: opcional. Modelo principal. Por defecto `gemini-3.6-flash`.
+- `GEMINI_MODEL_RESPALDO`: opcional. Si el modelo principal está saturado (error 503), usa este. Por defecto `gemini-3.8-flash`.
 
 El archivo `.env` nunca se sube a git.
 
@@ -58,7 +58,7 @@ Un `EvaluacionCalidad`:
 ## Casos especiales
 
 - Si el contenido no tiene ítems, devuelve score 0.0 y claridad "Baja", sin llamar a Gemini.
-- Si Gemini falla (cuota, red, key inválida), no lanza error. Devuelve score 0.0, claridad "No evaluada" y una observación que explica el problema. Así el backend siempre puede armar la `RespuestaFinal`.
+- Si Gemini falla, primero rota de key (cupo agotado) o pasa al modelo de respaldo (modelo saturado). Si no queda ninguna opción, no lanza error: devuelve score 0.0, claridad "No evaluada" y una observación que explica el problema. Así el backend siempre puede armar la `RespuestaFinal`.
 
 ## Probar el módulo
 
