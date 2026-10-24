@@ -126,12 +126,12 @@ def render() -> None:
             st.divider()
 
             # Renderizado dinámico según el formato seleccionado
-            formato = meta.get("formato_generado", "")
+            formato = str(meta.get("formato_generado", "")).lower()
             items = contenido.get("items", [])
 
-            if formato == "Flashcards de Memorización":
+            if "flashcard" in formato:
                 _render_flashcards(items)
-            elif formato == "Quiz Interactivo con Justificaciones":
+            elif "quiz" in formato:
                 _render_quiz(items)
             else:
                 for item in items:
@@ -188,6 +188,32 @@ def _render_flashcards(items: list) -> None:
     st.progress((idx + 1) / total)
 
     item = items[idx]
+    
+    # Extraer frente y dorso tolerando varios nombres de llaves
+    texto_frente = (
+        item.get("frente")
+        or item.get("pregunta")
+        or item.get("termino")
+        or item.get("question")
+        or ""
+    )
+    texto_dorso = (
+    item.get("dorso")
+    or item.get("respuesta_correcta")
+    or item.get("justificacion")
+    or item.get("respuesta")
+    or item.get("definicion")
+    or item.get("answer")
+    or ""
+)
+
+    pista = item.get("pista_didactica") or item.get("pista") or ""
+
+    # Si por alguna razón ambas vienen vacías, mostramos el contenido crudo para saber la llave
+    if not texto_frente and not texto_dorso:
+        st.warning("Estructura de la tarjeta no reconocida:")
+        st.json(item)
+
     key_reveal = f"flash_reveal_{idx}"
     revelada = st.session_state.get(key_reveal, False)
 
@@ -197,7 +223,7 @@ def _render_flashcards(items: list) -> None:
             f"""
             <div style="background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); border: 2px solid #38BDF8; border-radius: 16px; padding: 32px 24px; text-align: center; min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); margin-top: 12px; margin-bottom: 16px;">
                 <span style="background: #38BDF8; color: #0F172A; font-weight: 800; font-size: 11px; padding: 4px 12px; border-radius: 12px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px;">TÉRMINO / PREGUNTA</span>
-                <h3 style="color: #FFFFFF; font-size: 22px; font-weight: 700; margin: 0; line-height: 1.4;">{item.get('frente', '')}</h3>
+                <h3 style="color: #FFFFFF; font-size: 22px; font-weight: 700; margin: 0; line-height: 1.4;">{texto_frente}</h3>
             </div>
             """,
             unsafe_allow_html=True,
@@ -210,18 +236,18 @@ def _render_flashcards(items: list) -> None:
             f"""
             <div style="background: linear-gradient(135deg, #064E3B 0%, #022C22 100%); border: 2px solid #4ADE80; border-radius: 16px; padding: 32px 24px; text-align: center; min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center; box-shadow: 0 10px 25px rgba(0,0,0,0.3); margin-top: 12px; margin-bottom: 16px;">
                 <span style="background: #4ADE80; color: #022C22; font-weight: 800; font-size: 11px; padding: 4px 12px; border-radius: 12px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px;">RESPUESTA / CONCEPTO</span>
-                <h3 style="color: #FFFFFF; font-size: 20px; font-weight: 600; margin: 0; line-height: 1.4;">{item.get('dorso', '')}</h3>
+                <h3 style="color: #FFFFFF; font-size: 20px; font-weight: 600; margin: 0; line-height: 1.4;">{texto_dorso}</h3>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        if item.get("pista_didactica"):
+        if pista:
             st.markdown(
                 f"""
                 <div style="background: rgba(250, 204, 21, 0.1); border-left: 4px solid #FACC15; padding: 12px 16px; border-radius: 0 8px 8px 0; margin-bottom: 16px;">
                     <span style="color: #FACC15; font-weight: bold; font-size: 13px;">💡 Pista pedagógica:</span>
-                    <p style="color: #E2E8F0; font-size: 13px; margin: 4px 0 0 0;">{item['pista_didactica']}</p>
+                    <p style="color: #E2E8F0; font-size: 13px; margin: 4px 0 0 0;">{pista}</p>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -233,15 +259,17 @@ def _render_flashcards(items: list) -> None:
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    # Controles de navegación
+    # Controles de navegación: resetean el volteo de la siguiente tarjeta para que siempre empiece con la PREGUNTA
     col1, col2 = st.columns(2)
     with col1:
         if st.button("← Anterior", disabled=idx == 0, key="flash_prev", use_container_width=True):
             st.session_state.flash_idx = idx - 1
+            st.session_state[f"flash_reveal_{idx - 1}"] = False
             st.rerun()
     with col2:
         if st.button("Siguiente →", disabled=idx == total - 1, key="flash_next", use_container_width=True):
             st.session_state.flash_idx = idx + 1
+            st.session_state[f"flash_reveal_{idx + 1}"] = False
             st.rerun()
 
     if idx == total - 1 and revelada:

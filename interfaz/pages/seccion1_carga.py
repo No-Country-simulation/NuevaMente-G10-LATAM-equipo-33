@@ -1,3 +1,4 @@
+import io 
 import sys
 from pathlib import Path
 import streamlit as st
@@ -17,10 +18,19 @@ def procesar_y_continuar():
         contenido_bytes = archivo.getvalue()
 
         # Extracción del contenido previamente subido
-        try:
-            texto_extraido = contenido_bytes.decode("utf-8")
-        except Exception:
-            texto_extraido = f"Documento binario subido({archivo.name})"
+        if archivo.name.lower().endswith(".pdf"):
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(io.BytesIO(contenido_bytes))
+                paginas = [p.extract_text() or "" for p in reader.pages]
+                texto_extraido = "\n\n".join(paginas).strip() or f"Documento binario subido({archivo.name})"
+            except Exception:
+                texto_extraido = f"Documento binario subido({archivo.name})"
+        else:
+            try:
+                texto_extraido = contenido_bytes.decode("utf-8")
+            except Exception:
+                texto_extraido = contenido_bytes.decode("latin-1", errors="ignore")
 
         # Guarda datos en session_state para Backend
         st.session_state['documento_titulo'] = archivo.name
