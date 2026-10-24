@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     llm_provider: str = "gemini"
 
-    gemini_api_key: str | None = None
+    gemini_api_keys: str | None = None
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
 

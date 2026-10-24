@@ -58,7 +58,7 @@ cd backend
 
 En Linux / macOS:
 
-python -m venv venv
+python -m venv venv ó  python3 -m venv venv
 source venv/bin/activate
 
 
@@ -76,8 +76,19 @@ python -m venv venv
 
 3. Instalar las dependencias
 
-pip install -r requirements.txt
+En Windows (CMD):
 
+set PYTHONPATH=%CD%\..
+
+comprobemos que quedó configurado:
+
+echo %PYTHONPATH%
+
+En Windows (PowerShell):
+
+$env:PYTHONPATH=".."
+
+pip install -r requirements.txt -r ../evaluacion/requirements.txt -r ../ingesta_rag/requirements.txt -r ../orquestacion_agentes/requirements.txt -r ../interfaz/requirements.txt
 
 4. Configurar variables de entorno
 
@@ -88,18 +99,19 @@ Edita el archivo .env agregando las credenciales y configuraciones correspondien
 
 ▶️ Ejecución en Local
 
+
 Para iniciar el servidor de desarrollo local con recarga automática:
 
-uvicorn app:app --reload --host 0.0.0.0 --port 8000
+uvicorn app:app --reload --host 0.0.0.0 --port 8001
 
 
 Una vez levantado el servidor, estará disponible en:
 
-API Principal: http://localhost:8000
+API Principal: http://localhost:8001
 
-Documentación Interactiva (Swagger UI): http://localhost:8000/docs
+Documentación Interactiva (Swagger UI): http://localhost:8001/docs
 
-Documentación Alternativa (ReDoc): http://localhost:8000/redoc
+Documentación Alternativa (ReDoc): http://localhost:8001/redoc
 
 💡 Ejemplo de Uso Mínimo
 
@@ -108,7 +120,7 @@ A continuación se muestra un ejemplo de cómo consumir el endpoint de adaptaci�
 Ejemplo Request (cURL)
 
 curl -X 'POST' \
-  'http://localhost:8000/api/adaptation' \
+  'http://localhost:8001/api/adaptation' \
   -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{

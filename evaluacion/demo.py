@@ -11,7 +11,7 @@ from pathlib import Path
 # Raíz del repo en el path, para encontrar shared/ y evaluacion/
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from evaluacion.services.evaluador import evaluar_contenido
+from services.evaluador import evaluar_contenido
 from shared.contratos import ChunkResultado, ContenidoGenerado
 
 if __name__ == "__main__":
