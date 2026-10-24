@@ -111,11 +111,14 @@ def _crear_resultado_simulado(solicitud: dict) -> dict:
 
 
 def generar():
+    formato_elegido = st.session_state.get("param_formato", "")
+    formato_para_backend = "Quiz" if "Quiz" in formato_elegido else "Flashcards"
+
     solicitud = {
         "documento_titulo": st.session_state.get("documento_titulo", "Documento"),
         "documento_contenido": st.session_state.get("documento_contenido", ""),
         "perfil_destinatario": st.session_state.get("param_perfil", "General"),
-        "formato_salida": st.session_state.get("param_formato", FORMATOS_SELECCION[0]),
+        "formato_salida": formato_para_backend,
         "nicho_sector": st.session_state.get("param_nicho", "").strip() or "General",
         "nivel_detalle": st.session_state.get("param_nivel", "Intermedio"),
     }
