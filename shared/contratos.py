@@ -112,9 +112,16 @@ class AlmacenamientoOCI(BaseModel):
     status_upload: str
 
 
+class AlmacenamientoLocal(BaseModel):
+    documento_original: str
+    resultado_generado: str
+    status_guardado: str
+
+
 class RespuestaFinal(BaseModel):
     status: str
     metadatos: dict[str, Any]
     contenido_adaptado: ContenidoGenerado
     evaluacion_calidad: EvaluacionCalidad
-    almacenamiento_oci: AlmacenamientoOCI
+    almacenamiento_oci: AlmacenamientoOCI | None = None
+    almacenamiento_local: AlmacenamientoLocal | None = None

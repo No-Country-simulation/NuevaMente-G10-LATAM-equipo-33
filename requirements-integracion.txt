@@ -1,0 +1,8 @@
+# Entorno local conjunto. Los manifiestos por módulo permanecen independientes.
+-r requirements-oci-backend.txt
+-r requirements-oci-frontend.txt
+
+# pytest no aparece en los inventarios OCI: rango para herramientas locales.
+pytest>=8,<10
+# Necesario para FastAPI/Starlette TestClient; versión del inventario Backend.
+httpx==0.28.1

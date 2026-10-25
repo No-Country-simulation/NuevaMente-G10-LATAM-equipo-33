@@ -14,6 +14,8 @@ CONTEXTO = [ChunkResultado(texto="Una VCN es una red virtual privada.", score=0.
 
 ERROR_CUOTA = RuntimeError("429 RESOURCE_EXHAUSTED. Excediste tu cuota actual")
 ERROR_SATURADO = RuntimeError("503 UNAVAILABLE. Este modelo está experimentando alta demanda")
+ERROR_CUOTA.status_code = 429
+ERROR_SATURADO.status_code = 503
 
 
 def v(indice: int, veredicto: str) -> VeredictoItem:
@@ -118,6 +120,8 @@ def _usar_modelos(monkeypatch, jueces):
 def juez_falso_por_defecto(monkeypatch):
     """Ninguna prueba llama a Gemini de verdad."""
     monkeypatch.setattr(evaluador, "_clave_actual", 0)
+    monkeypatch.delenv("GEMINI_EVALUATION_MODEL", raising=False)
+    monkeypatch.delenv("GEMINI_EVALUATION_MODEL_RESPALDO", raising=False)
     juez = JuezFalso(resultado=_un_item_respaldado())
     _usar_jueces(monkeypatch, {"clave-1": juez})
     return juez
@@ -161,7 +165,7 @@ def test_evaluar_contenido_devuelve_evaluacion_por_defecto_si_falla_el_llm(monke
 
     assert r.anclaje_fuente_score == 0.0
     assert r.claridad_pedagogica == "No evaluada"
-    assert "RuntimeError" in r.observaciones
+    assert "desconocido" in r.observaciones
 
 
 def test_sin_api_key_devuelve_evaluacion_por_defecto(monkeypatch):
@@ -269,7 +273,7 @@ def test_si_todos_los_modelos_estan_saturados_devuelve_evaluacion_por_defecto(mo
     r = _evaluar()
 
     assert r.claridad_pedagogica == "No evaluada"
-    assert "saturados" in r.observaciones
+    assert "indisponibilidad" in r.observaciones
 
 
 def test_obtener_modelos_agrega_el_respaldo_y_no_repite(monkeypatch):

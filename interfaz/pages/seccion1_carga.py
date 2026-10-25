@@ -1,4 +1,3 @@
-import io 
 import sys
 from pathlib import Path
 import streamlit as st
@@ -17,24 +16,9 @@ def procesar_y_continuar():
         archivo = st.session_state['archivo_temporal']
         contenido_bytes = archivo.getvalue()
 
-        # Extracción del contenido previamente subido
-        if archivo.name.lower().endswith(".pdf"):
-            try:
-                import pypdf
-                reader = pypdf.PdfReader(io.BytesIO(contenido_bytes))
-                paginas = [p.extract_text() or "" for p in reader.pages]
-                texto_extraido = "\n\n".join(paginas).strip() or f"Documento binario subido({archivo.name})"
-            except Exception:
-                texto_extraido = f"Documento binario subido({archivo.name})"
-        else:
-            try:
-                texto_extraido = contenido_bytes.decode("utf-8")
-            except Exception:
-                texto_extraido = contenido_bytes.decode("latin-1", errors="ignore")
-
-        # Guarda datos en session_state para Backend
+        # Conserva el original; la extracción se realiza en el Backend.
         st.session_state['documento_titulo'] = archivo.name
-        st.session_state['documento_contenido'] = texto_extraido
+        st.session_state['documento_contenido'] = ""
         st.session_state['archivo_bytes'] = contenido_bytes
         
         # Avanza a la pantalla 2

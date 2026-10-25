@@ -5,18 +5,20 @@ Coordina la ingesta RAG, la generación, la evaluación
 y el almacenamiento del contenido adaptado.
 """
 
-from schemas.request import AdaptacionRequest
+from backend.schemas.request import AdaptacionRequest
 from shared.contratos import RespuestaFinal
-from core.config import settings
+from backend.core.config import settings
 
-from services.rag_service import indexar, buscar
-from services.orchestration_service import generar_contenido
+from backend.services.rag_service import indexar, buscar
+from backend.services.orchestration_service import generar_contenido
 
 from evaluacion.services.evaluador import evaluar_contenido
-from mocks.storage_mock import almacenar_contenido
+from backend.services.storage_service import StorageService
 
 
-def adaptar_contenido(request: AdaptacionRequest) -> RespuestaFinal:
+def adaptar_contenido(request: AdaptacionRequest, documento_bytes: bytes) -> RespuestaFinal:
+    storage = StorageService()
+    original = storage.guardar_original(request.documento_titulo, documento_bytes)
     # 1. Indexar el documento.
     doc_id = indexar(
         titulo=request.documento_titulo,
@@ -48,15 +50,14 @@ def adaptar_contenido(request: AdaptacionRequest) -> RespuestaFinal:
         formato_salida=request.formato_salida,
 )
 
-    # 5. Almacenar el contenido.
-    almacenamiento = almacenar_contenido(
-        contenido=contenido.model_dump(),
-    )
+    # 5. Persistir la respuesta completa antes de devolver éxito.
+    resultado, referencias, almacenamiento = storage.referencias(original)
 
     # 6. Construir la respuesta según el contrato compartido.
-    return RespuestaFinal(
+    respuesta = RespuestaFinal(
         status="exito",
         metadatos={
+            **referencias,
             "perfil_aplicado": request.perfil_destinatario,
             "formato_generado": request.formato_salida,
             "tiempo_estimado_estudio_minutos": (
@@ -66,5 +67,7 @@ def adaptar_contenido(request: AdaptacionRequest) -> RespuestaFinal:
         },
         contenido_adaptado=contenido,
         evaluacion_calidad=evaluacion,
-        almacenamiento_oci=almacenamiento,
+        **almacenamiento,
     )
+    storage.guardar_resultado(resultado, respuesta)
+    return respuesta
