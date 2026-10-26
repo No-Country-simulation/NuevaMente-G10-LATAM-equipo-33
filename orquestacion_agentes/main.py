@@ -28,6 +28,7 @@ sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+from shared.gemini_policy import StructuredResultError, invoke_models
 
 from shared.contratos import (
     ChunkResultado,
@@ -44,6 +45,7 @@ MODELO_RESPALDO_POR_DEFECTO = "gemini-3.8-flash"
 
 NICHO_POR_DEFECTO = "General"
 NIVEL_DETALLE_POR_DEFECTO = "Didactico"
+MAX_GENERATED_ITEMS = 10
 
 # Índice de la última API key que funcionó (así no se vuelve a golpear una agotada).
 _clave_actual = 0
@@ -102,6 +104,8 @@ PARÁMETROS DE ADAPTACIÓN:
 Generá el contenido adaptado respetando fielmente la información del
 contexto (no inventes datos que no estén ahí). Ajustá el lenguaje y la
 profundidad al perfil indicado, y estructuralo según el formato pedido.
+Generá como máximo {max_items} elementos: flashcards o preguntas de quiz.
+Podés generar menos si el contexto no justifica más; no agregues contenido de relleno.
 """
 
 
@@ -130,19 +134,8 @@ def _get_llm(modelo: str, api_key: str) -> ChatGoogleGenerativeAI:
         model=modelo,
         google_api_key=api_key,
         max_retries=1,
+        timeout=60,
     )
-
-
-def _es_error_de_sobrecarga(error: Exception) -> bool:
-    """503: el modelo está saturado para todos, cambiar de key no ayuda."""
-    texto = f"{type(error).__name__} {error}".upper()
-    return "UNAVAILABLE" in texto or "503" in texto or "OVERLOADED" in texto
-
-
-def _es_error_de_cuota(error: Exception) -> bool:
-    """429: esta key agotó su cupo, otra key puede tener."""
-    texto = f"{type(error).__name__} {error}".upper()
-    return "RESOURCE_EXHAUSTED" in texto or "RATELIMIT" in texto or "429" in texto
 
 
 def _invocar_con_rotacion(modelo_formato, prompt: str):
@@ -156,30 +149,17 @@ def _invocar_con_rotacion(modelo_formato, prompt: str):
             "(GEMINI_API_KEYS, GEMINI_API_KEY o GOOGLE_API_KEY)."
         )
 
-    ultimo_error = None
-    for modelo in _obtener_modelos():
-        for desplazamiento in range(len(claves)):
-            indice = (_clave_actual + desplazamiento) % len(claves)
-            try:
-                llm = _get_llm(modelo, claves[indice]).with_structured_output(modelo_formato)
-                resultado = llm.invoke(prompt)
-            except Exception as error:
-                if _es_error_de_sobrecarga(error):
-                    logger.warning("El modelo %s está saturado, se prueba el siguiente: %s", modelo, error)
-                    ultimo_error = error
-                    break  # con el modelo saturado otra key no ayuda: siguiente modelo
-                if _es_error_de_cuota(error):
-                    logger.warning("La API key %d no tiene cupo, se prueba la siguiente: %s", indice + 1, error)
-                    ultimo_error = error
-                    continue
-                raise
-            _clave_actual = indice
-            return resultado
+    def validate(resultado):
+        if not isinstance(resultado, modelo_formato) or not resultado.items:
+            raise StructuredResultError("Contenido estructurado no válido.")
 
-    raise ErrorGeneracion(
-        "Se agotó el cupo o los modelos de Gemini están saturados en todas las API keys "
-        "configuradas. Esperá un minuto e intentá de nuevo."
-    ) from ultimo_error
+    resultado, indice = invoke_models(
+        models=_obtener_modelos(), keys=claves, start_index=_clave_actual,
+        prepare=lambda modelo, clave: _get_llm(modelo, clave).with_structured_output(modelo_formato),
+        validate=validate, prompt=prompt, error_type=ErrorGeneracion,
+    )
+    _clave_actual = indice
+    return resultado
 
 
 def _texto_requerido(campo: str, valor) -> str:
@@ -248,6 +228,7 @@ def generar_contenido_adaptado(
         formato_salida=formato_oficial,
         nicho_sector=nicho_sector,
         nivel_detalle=nivel_detalle,
+        max_items=MAX_GENERATED_ITEMS,
     )
 
     try:
@@ -255,11 +236,11 @@ def generar_contenido_adaptado(
     except ErrorGeneracion:
         raise
     except Exception as error:
-        logger.warning("Falló la generación con Gemini: %s", error)
+        logger.warning("Falló la generación con Gemini; detalles externos omitidos.")
         raise ErrorGeneracion(
-            f"No se pudo generar el contenido con Gemini ({type(error).__name__}). "
+            "No se pudo generar el contenido con Gemini. "
             "Intentá de nuevo en unos minutos."
-        ) from error
+        ) from None
 
     if resultado_tipado is None or not resultado_tipado.items:
         raise ErrorGeneracion("Gemini devolvió un contenido vacío. Intentá de nuevo.")
@@ -269,7 +250,7 @@ def generar_contenido_adaptado(
     return ContenidoGenerado(
         titulo=resultado_tipado.titulo,
         introduccion_contextualizada=resultado_tipado.introduccion_contextualizada,
-        items=[item.model_dump() for item in resultado_tipado.items],
+        items=[item.model_dump() for item in resultado_tipado.items[:MAX_GENERATED_ITEMS]],
         conceptos_clave=resultado_tipado.conceptos_clave,
         tiempo_estimado_estudio_minutos=resultado_tipado.tiempo_estimado_estudio_minutos,
     )

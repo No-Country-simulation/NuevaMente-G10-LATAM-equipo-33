@@ -22,6 +22,7 @@ sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
+from shared.gemini_policy import StructuredResultError, invoke_models
 
 from evaluacion.prompts.juez import PROMPT_JUEZ
 from evaluacion.schemas.juez import ResultadoJuez, VeredictoItem
@@ -57,8 +58,10 @@ def _obtener_api_keys() -> list[str]:
 
 def _obtener_modelos() -> list[str]:
     """Modelo principal y modelo de respaldo, en orden y sin repetir."""
-    principal = os.getenv("GEMINI_MODEL", "").strip() or MODELO_POR_DEFECTO
-    respaldo = os.getenv("GEMINI_MODEL_RESPALDO", MODELO_RESPALDO_POR_DEFECTO).strip()
+    principal = (os.getenv("GEMINI_EVALUATION_MODEL", "").strip()
+                 or os.getenv("GEMINI_MODEL", "").strip() or MODELO_POR_DEFECTO)
+    respaldo = os.getenv("GEMINI_EVALUATION_MODEL_RESPALDO",
+                        os.getenv("GEMINI_MODEL_RESPALDO", MODELO_RESPALDO_POR_DEFECTO)).strip()
     return list(dict.fromkeys(m for m in (principal, respaldo) if m))
 
 
@@ -69,19 +72,8 @@ def _get_llm(modelo: str, api_key: str) -> ChatGoogleGenerativeAI:
         model=modelo,
         google_api_key=api_key,
         max_retries=1,
+        timeout=60,
     )
-
-
-def _es_error_de_sobrecarga(error: Exception) -> bool:
-    """503: el modelo está saturado para todos, cambiar de key no ayuda."""
-    texto = f"{type(error).__name__} {error}".upper()
-    return "UNAVAILABLE" in texto or "503" in texto or "OVERLOADED" in texto
-
-
-def _es_error_de_cuota(error: Exception) -> bool:
-    """429: esta key agotó su cupo, otra key puede tener."""
-    texto = f"{type(error).__name__} {error}".upper()
-    return "RESOURCE_EXHAUSTED" in texto or "RATELIMIT" in texto or "429" in texto
 
 
 def _invocar_con_rotacion(prompt: str) -> ResultadoJuez:
@@ -92,27 +84,17 @@ def _invocar_con_rotacion(prompt: str) -> ResultadoJuez:
     if not claves:
         raise ErrorEvaluacion("falta configurar la API key de Gemini")
 
-    ultimo_error = None
-    for modelo in _obtener_modelos():
-        for desplazamiento in range(len(claves)):
-            indice = (_clave_actual + desplazamiento) % len(claves)
-            try:
-                juez = _get_llm(modelo, claves[indice]).with_structured_output(ResultadoJuez)
-                resultado = juez.invoke(prompt)
-            except Exception as error:
-                if _es_error_de_sobrecarga(error):
-                    logger.warning("El modelo %s está saturado, se prueba el siguiente: %s", modelo, error)
-                    ultimo_error = error
-                    break  # con el modelo saturado otra key no ayuda: siguiente modelo
-                if _es_error_de_cuota(error):
-                    logger.warning("La API key %d no tiene cupo, se prueba la siguiente: %s", indice + 1, error)
-                    ultimo_error = error
-                    continue
-                raise
-            _clave_actual = indice
-            return resultado
+    def validate(resultado):
+        if not isinstance(resultado, ResultadoJuez):
+            raise StructuredResultError("Evaluación estructurada no válida.")
 
-    raise ErrorEvaluacion("cupo agotado o modelos saturados en todas las API keys") from ultimo_error
+    resultado, indice = invoke_models(
+        models=_obtener_modelos(), keys=claves, start_index=_clave_actual,
+        prepare=lambda modelo, clave: _get_llm(modelo, clave).with_structured_output(ResultadoJuez),
+        validate=validate, prompt=prompt, error_type=ErrorEvaluacion,
+    )
+    _clave_actual = indice
+    return resultado
 
 
 def _evaluacion_no_disponible(motivo: str) -> EvaluacionCalidad:
@@ -187,11 +169,11 @@ def evaluar_contenido(
     try:
         resultado = _invocar_con_rotacion(prompt)
     except ErrorEvaluacion as error:
-        logger.warning("No se pudo evaluar el contenido con Gemini: %s", error)
+        logger.warning("No se pudo evaluar el contenido con Gemini; detalles externos omitidos.")
         return _evaluacion_no_disponible(str(error))
     except Exception as error:
-        logger.warning("No se pudo evaluar el contenido con Gemini: %s", error)
-        return _evaluacion_no_disponible(type(error).__name__)
+        logger.warning("No se pudo evaluar el contenido con Gemini; detalles externos omitidos.")
+        return _evaluacion_no_disponible("error no clasificado")
 
     score = calcular_anclaje(resultado.veredictos_items, total_items)
     observaciones = resultado.observaciones

@@ -57,3 +57,6 @@ NOMBRE_COLECCION = os.getenv(
     "NOMBRE_COLECCION",
     "nuevamente_documentos"
 )
+
+# Nunca superar cuatro intentos por lote, aunque el entorno solicite más.
+MAX_EMBEDDING_ATTEMPTS = max(1, min(4, int(os.getenv("MAX_EMBEDDING_ATTEMPTS", "4"))))

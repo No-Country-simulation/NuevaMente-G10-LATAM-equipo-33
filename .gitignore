@@ -7,4 +7,9 @@ node_modules/
 .vscode/
 .idea/
 *.log
-venv-integracion/
+.venv-integracion/
+.venv-backend/
+.venv-frontend/
+.oci/
+chroma_db/
+data/

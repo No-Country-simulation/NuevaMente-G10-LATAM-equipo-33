@@ -9,6 +9,7 @@ if str(RAIZ_DIR) not in sys.path:
 
 from theme import PALETTE
 from constants import PERFILES, FORMATOS, NIVELES
+from client_config import ADAPT_URL, API_TIMEOUT_SECONDS
 
 # Fallback si constants no tiene alguna lista
 if not PERFILES:
@@ -129,9 +130,16 @@ def generar():
     try:
         import requests
         resp = requests.post(
-            "http://localhost:8001/api/v1/adapt",
-            json=solicitud,
-            timeout=120
+            ADAPT_URL,
+            data={campo: solicitud[campo] for campo in (
+                "perfil_destinatario", "formato_salida", "nicho_sector", "nivel_detalle"
+            )},
+            files={"archivo": (
+                solicitud["documento_titulo"],
+                st.session_state.get("archivo_bytes", b""),
+                "application/octet-stream",
+            )},
+            timeout=API_TIMEOUT_SECONDS
         )
         if resp.status_code == 200:
             resultado = resp.json()

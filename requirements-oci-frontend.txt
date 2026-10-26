@@ -1,0 +1,5 @@
+# Frontend independiente: versiones del inventario OCI y dependencias directas.
+streamlit==1.66.0
+requests==2.34.2
+# Compartida con Backend; misma versión para permitir la instalación conjunta.
+python-dotenv==1.2.4

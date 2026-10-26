@@ -1,0 +1,3 @@
+# Instalación opcional para STORAGE_BACKEND=oci; reutiliza el manifiesto recuperado.
+-r requirements.txt
+-r ../oci_storage/requirements.txt

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
-from core.config import settings
-from api.adaptation import router as adaptation_router
+from backend.core.config import settings
+from backend.api.adaptation import router as adaptation_router
 
 
 app = FastAPI(

@@ -10,7 +10,7 @@ from ingesta_rag.services.retrieving_service import (
     buscar_contexto as _buscar_contexto,
 )
 
-from core.exceptions import RagError
+from backend.core.exceptions import RagError
 
 
 def indexar(

@@ -3,5 +3,9 @@ pydantic
 pydantic-settings
 python-dotenv
 uvicorn
+python-multipart
+pypdf
+python-docx
+python-pptx
 
 
