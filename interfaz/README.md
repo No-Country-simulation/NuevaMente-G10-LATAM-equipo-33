@@ -183,9 +183,6 @@ La comunicación entre el frontend y el backend está orquestada en `seccion2_pa
    * Feedback explicativo inmediato con justificación pedagógica por pregunta.
    * Gráfico donut radial SVG (`render_donut`) que calcula visualmente el porcentaje final de aciertos.
 
-3. **Formatos Estructurados Adicionales:**
-   * Soporte base extensible para *Guía Práctica Paso a Paso (Tutorial)*, *Resumen Ejecutivo* y *Guion Audiovisual*.
-
 ---
 
 <a id="instalacion"></a>
